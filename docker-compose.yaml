@@ -1,0 +1,52 @@
+services:
+  pyspark-notebook:
+    image:  jupyter/pyspark-notebook
+    container_name: pyspark-vscode
+    ports:
+      - "8888:8888"
+      - "4040:4040"  # Spark UI
+    volumes:
+      - ./notebooks:/home/jovyan/work
+  # postgres:
+  warehouse:
+    image: postgres:13
+    container_name: postgres-warehouse
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data:/var/lib/postgresql/data
+  warehouseui:
+    image: dpage/pgadmin4
+    container_name: postgres-warehouse-ui
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PG_USER}@example.com
+      PGADMIN_DEFAULT_PASSWORD: ${PG_PASSWORD}
+    ports:
+      - "8080:80"
+    depends_on:
+      - warehouse
+    volumes:
+      - ./data:/var/lib/pgadmin/
+      
+  obt-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: obt-builder
+    depends_on:
+      - warehouse
+    environment:
+      PG_HOST: warehouse
+      PG_PORT: 5432
+      PG_DB: ${PG_DB}
+      PG_USER: ${PG_USER}
+      PG_PASSWORD: ${PG_PASSWORD}
+      PG_SCHEMA_RAW: ${PG_SCHEMA_RAW}
+      PG_SCHEMA_ANALYTICS: ${PG_SCHEMA_ANALYTICS}
+    volumes:
+      - ./notebooks:/app/notebooks
+    command: python /app/notebooks/build_obt.py --mode full --year-start 2015 --year-end 2025 --services yellow green --run-id run_full --overwrite true
